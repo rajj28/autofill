@@ -24,11 +24,11 @@ export const SOURCE_CATALOG: SourceCatalogEntry[] = [
     name: "GitLab",
     blurb: "Owned projects from gitlab.com via the official REST API.",
     live: true,
-    auth: "token",
+    auth: "oauth",
     fields: [
-      { key: "accessToken", label: "Personal access token", secret: true, placeholder: "glpat-…" },
+      { key: "accessToken", label: "Personal access token (not needed with Connect)", secret: true, placeholder: "glpat-…" },
     ],
-    apiNotes: "Official GitLab API v4. Token scope: read_api. Hosted gitlab.com in the MVP.",
+    apiNotes: "Official GitLab API v4. Sign in with GitLab (scope read_api), or paste a personal access token. Hosted gitlab.com only.",
   },
   {
     type: "npm",

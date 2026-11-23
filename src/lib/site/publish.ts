@@ -1,5 +1,5 @@
 import { prisma } from "../db";
-import { decryptSecret } from "../crypto";
+import { resolveRepoToken } from "./github-app";
 import { sha256 } from "../crypto";
 import { logger } from "../logger";
 import { env } from "../env";
@@ -70,7 +70,7 @@ export async function publishToSite(userId: string, reason: string): Promise<Pub
     // The committed file carries generatedAt for humans reading the repo, even
     // though the change check deliberately ignores it.
     const fileBody = `${JSON.stringify(payload, null, 2)}\n`;
-    const result = await writePortfolioFile(decryptSecret(target.encryptedToken), repoTarget, fileBody, message);
+    const result = await writePortfolioFile(await resolveRepoToken(userId, target), repoTarget, fileBody, message);
 
     if (result.status === "unchanged") {
       await prisma.siteTarget.update({ where: { userId }, data: { lastContentHash: hash, lastError: null } });
@@ -130,13 +130,13 @@ export async function publishToSite(userId: string, reason: string): Promise<Pub
  */
 async function appendToExistingContent(
   userId: string,
-  target: { encryptedToken: string; filePath: string },
+  target: { encryptedToken: string | null; filePath: string },
   repoTarget: RepoTarget,
   payload: Awaited<ReturnType<typeof loadPayloadByUserId>>,
   reason: string
 ): Promise<PublishOutcome> {
   if (!payload) return { status: "skipped", reason: "User not found." };
-  const token = decryptSecret(target.encryptedToken);
+  const token = await resolveRepoToken(userId, target);
 
   let source: string;
   try {

@@ -29,7 +29,8 @@ import { normalizeFilePath, parseRepoInput, verifyRepoAccess, RepoWriteError } f
 import { publishToSite } from "@/lib/site/publish";
 import { detectFramework } from "@/lib/site/detect";
 import { discoverContentSources } from "@/lib/site/content-source";
-import { encryptSecret, decryptSecret } from "@/lib/crypto";
+import { encryptSecret } from "@/lib/crypto";
+import { installationToken, resolveRepoToken } from "@/lib/site/github-app";
 
 /**
  * Best-effort client identity for rate limiting. Behind a proxy the socket
@@ -467,16 +468,27 @@ export async function connectSiteAction(formData: FormData) {
   const mode = String(formData.get("mode") || "pr") === "commit" ? "commit" : "pr";
   const strategy = strategyRaw;
   const token = String(formData.get("token") || "").trim();
-  if (!token) return { error: "A GitHub token with Contents write access is required." };
+  // No pasted token means "use the GitHub App installation". That path only
+  // exists once the member has installed the app, which the callback verified.
+  let resolvedToken = token;
+  if (!token) {
+    const install = await prisma.githubInstallation.findUnique({ where: { userId: user.id } });
+    if (!install) return { error: "Install the GitHub App on your site repository, or paste a token." };
+    try {
+      resolvedToken = await installationToken(install.installationId);
+    } catch {
+      return { error: "Could not use the GitHub App installation. Reinstall it and try again." };
+    }
+  }
 
   try {
     // Fail here rather than silently on the first background publish.
-    const info = await verifyRepoAccess(token, { owner: parsed.owner, repo: parsed.repo, branch });
+    const info = await verifyRepoAccess(resolvedToken, { owner: parsed.owner, repo: parsed.repo, branch });
 
     // Detect the framework so the member does not have to know where their
     // generator expects data files. Only overrides the path when they left the
     // default untouched — an explicit choice always wins.
-    const detected = await detectFramework(token, parsed.owner, parsed.repo, branch);
+    const detected = await detectFramework(resolvedToken, parsed.owner, parsed.repo, branch);
     const usedDefault = String(formData.get("filePath") || "").trim() === "";
     // Append mode always targets an explicit existing content file; only the
     // "own a file" strategy gets a framework-derived default.
@@ -491,7 +503,7 @@ export async function connectSiteAction(formData: FormData) {
       filePath: resolvedPath,
       mode,
       strategy,
-      encryptedToken: encryptSecret(token),
+      encryptedToken: token ? encryptSecret(token) : null,
       // Force a real write on the next publish even if a previous target had
       // the identical payload hash.
       lastContentHash: null,
@@ -590,7 +602,7 @@ export async function scanSiteContentAction() {
 
   try {
     const { candidates, rejected } = await discoverContentSources(
-      decryptSecret(target.encryptedToken),
+      await resolveRepoToken(user.id, target),
       target.owner,
       target.repo,
       target.branch

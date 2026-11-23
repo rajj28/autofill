@@ -48,6 +48,18 @@ const schema = z.object({
   GITHUB_CLIENT_SECRET: z.string().optional(),
   GITHUB_WEBHOOK_SECRET: z.string().optional(),
 
+  // GitHub App: lets members grant write access to one repo with a click
+  // instead of creating a personal access token. Register it once as the operator.
+  GITHUB_APP_ID: z.string().optional(),
+  GITHUB_APP_SLUG: z.string().optional(),
+  GITHUB_APP_CLIENT_ID: z.string().optional(),
+  GITHUB_APP_CLIENT_SECRET: z.string().optional(),
+  // PEM, either with literal newlines, "\n" escapes, or base64-encoded.
+  GITHUB_APP_PRIVATE_KEY: z.string().optional(),
+
+  GITLAB_CLIENT_ID: z.string().optional(),
+  GITLAB_CLIENT_SECRET: z.string().optional(),
+
   LINKEDIN_CLIENT_ID: z.string().optional(),
   LINKEDIN_CLIENT_SECRET: z.string().optional(),
   // LinkedIn versions its API by month. Pin it so a LinkedIn-side change never
@@ -100,4 +112,12 @@ if (!parsed.success) {
 export const env = parsed.data;
 
 export const githubOAuthConfigured = Boolean(env.GITHUB_CLIENT_ID && env.GITHUB_CLIENT_SECRET);
+export const gitlabOAuthConfigured = Boolean(env.GITLAB_CLIENT_ID && env.GITLAB_CLIENT_SECRET);
+export const githubAppConfigured = Boolean(
+  env.GITHUB_APP_ID &&
+    env.GITHUB_APP_SLUG &&
+    env.GITHUB_APP_CLIENT_ID &&
+    env.GITHUB_APP_CLIENT_SECRET &&
+    env.GITHUB_APP_PRIVATE_KEY
+);
 export const linkedinOAuthConfigured = Boolean(env.LINKEDIN_CLIENT_ID && env.LINKEDIN_CLIENT_SECRET);
