@@ -65,7 +65,7 @@ const nextConfig: NextConfig = {
       // which is a public feed embedded on other people's sites and is meant to
       // be cached — a blanket /api/:path* no-store would silently override the
       // cache headers that route sets.
-      ...["auth", "cron", "integrations", "webhooks", "health"].map((segment) => ({
+      ...["auth", "cron", "integrations", "webhooks", "health", "agent"].map((segment) => ({
         source: `/api/${segment}/:path*`,
         headers: [{ key: "Cache-Control", value: "no-store" }],
       })),

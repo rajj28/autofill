@@ -156,6 +156,32 @@ A title containing a double quote won't break out of the string literal and turn
 
 ---
 
+## The AI layer (LangChain + LangGraph)
+
+Set `OPENAI_API_KEY` or `ANTHROPIC_API_KEY` (or pick with `LLM_PROVIDER`). No key means the offline heuristic curator, as before. Any provider failure also falls back to the heuristic, so a sync never stalls on a model outage.
+
+**Curation is a LangGraph state machine**, not one prompt:
+
+```
+write -> ground -> verify -> (unsupported claims? revise -> ground) -> finalize
+```
+
+- **ground** is deterministic code, no model: every number and URL in the generated prose must appear in the source facts, or it is flagged.
+- **verify** is a second LLM pass that lists claims the facts don't support (`CURATION_VERIFY=false` to skip it and halve the cost).
+- **revise** runs at most once. If a claim is still unsupported after that, it moves into `uncertainFields` and confidence is capped at 55, which keeps the item out of Autopilot.
+
+**"Ask my portfolio"** is a tool-calling agent at `POST /api/agent/<slug>`. It searches your published items through read-only tools and answers only from them. Citations are the items it actually retrieved *and* referenced, so an invented id is dropped. It has no write tools and no network tools, hard caps on model and tool calls, a per-IP rate limit, and CORS limited to `AGENT_ALLOWED_ORIGINS`.
+
+```bash
+curl -X POST https://your-app/api/agent/your-slug \
+  -H "content-type: application/json" -H "origin: https://ruturaj.is-a.dev" \
+  -d '{"messages":[{"role":"user","content":"What agent projects has he built?"}]}'
+```
+
+Tracing: set `LANGSMITH_TRACING=true` and `LANGSMITH_API_KEY` and every graph and agent run shows up in LangSmith with no code changes.
+
+---
+
 ## Autopilot
 
 Set it in Settings. Three positions:

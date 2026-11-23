@@ -54,8 +54,23 @@ const schema = z.object({
   // silently alters request semantics; bump deliberately.
   LINKEDIN_API_VERSION: z.string().regex(/^\d{6}$/, "LINKEDIN_API_VERSION must be YYYYMM.").default("202608"),
 
+  // ---- LLM (all optional; without a key the heuristic curator runs) ----
+  LLM_PROVIDER: z.enum(["openai", "anthropic"]).optional(),
   OPENAI_API_KEY: z.string().optional(),
   OPENAI_MODEL: z.string().default("gpt-4o-mini"),
+  ANTHROPIC_API_KEY: z.string().optional(),
+  ANTHROPIC_MODEL: z.string().default("claude-sonnet-4-5"),
+  LLM_TIMEOUT_MS: z.coerce.number().int().positive().default(30000),
+  LLM_MAX_RETRIES: z.coerce.number().int().min(0).max(5).default(2),
+  // Second-pass LLM check that every claim is supported by the source facts.
+  CURATION_VERIFY: z.enum(["true", "false"]).default("true"),
+
+  // Public "ask my portfolio" agent.
+  AGENT_ENABLED: z.enum(["true", "false"]).default("true"),
+  AGENT_RATE_LIMIT: z.coerce.number().int().positive().default(12),
+  AGENT_RATE_WINDOW_S: z.coerce.number().int().positive().default(300),
+  // Comma-separated origins allowed to call the agent from a browser.
+  AGENT_ALLOWED_ORIGINS: z.string().default("https://ruturaj.is-a.dev,http://localhost:5173"),
 
   SYNC_CONCURRENCY: z.coerce.number().int().positive().max(64).default(4),
   QUEUE_ENQUEUE_TIMEOUT_MS: z.coerce.number().int().positive().default(3000),
