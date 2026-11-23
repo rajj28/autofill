@@ -1,4 +1,4 @@
-import { env } from "./env";
+import { env, redisConfigured } from "./env";
 import { logger } from "./logger";
 
 /**
@@ -41,7 +41,9 @@ let redisClient: import("ioredis").default | null = null;
 let redisBroken = false;
 
 async function getRedis() {
-  if (redisBroken) return null;
+  // No REDIS_URL configured (e.g. serverless): use the in-memory window rather
+  // than paying a connect timeout on every request.
+  if (redisBroken || !redisConfigured) return null;
   if (redisClient) return redisClient;
   try {
     const { default: IORedis } = await import("ioredis");

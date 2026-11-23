@@ -35,6 +35,10 @@ const schema = z.object({
 
   DATABASE_URL: z.string().min(1, "DATABASE_URL is required."),
   REDIS_URL: z.string().default("redis://127.0.0.1:6379"),
+  // "queue" (default): BullMQ + a separate worker process. "inline": no Redis or
+  // worker, syncs and site publishes run inside the request. Use inline on
+  // serverless hosts such as Vercel, where a long-running worker cannot exist.
+  SYNC_MODE: z.enum(["queue", "inline"]).default("queue"),
 
   AUTH_SECRET: isProd ? strongSecret("AUTH_SECRET") : z.string().default("dev-secret-not-for-production-use-only"),
   APP_ENCRYPTION_KEY: isProd
@@ -112,6 +116,9 @@ if (!parsed.success) {
 export const env = parsed.data;
 
 export const githubOAuthConfigured = Boolean(env.GITHUB_CLIENT_ID && env.GITHUB_CLIENT_SECRET);
+/** True only when an operator set REDIS_URL, not when the localhost default applies. */
+export const redisConfigured = Boolean(process.env.REDIS_URL?.trim());
+export const inlineSync = env.SYNC_MODE === "inline";
 export const gitlabOAuthConfigured = Boolean(env.GITLAB_CLIENT_ID && env.GITLAB_CLIENT_SECRET);
 export const githubAppConfigured = Boolean(
   env.GITHUB_APP_ID &&

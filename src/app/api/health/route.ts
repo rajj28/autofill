@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { createRedis } from "@/lib/queue";
+import { inlineSync, redisConfigured } from "@/lib/env";
 
 export const dynamic = "force-dynamic";
 
@@ -44,7 +45,11 @@ function message(error: unknown) {
 }
 
 export async function GET() {
-  const [database, redis] = await Promise.all([checkDatabase(), checkRedis()]);
+  // Inline mode has no Redis by design, so its absence is not a degradation.
+  const [database, redis] = await Promise.all([
+    checkDatabase(),
+    inlineSync && !redisConfigured ? Promise.resolve({ ok: true, latencyMs: 0, skipped: "inline mode" }) : checkRedis(),
+  ]);
   const status = !database.ok ? "unhealthy" : redis.ok ? "healthy" : "degraded";
   return NextResponse.json(
     { status, checks: { database, redis }, uptimeSeconds: Math.round(process.uptime()), ts: new Date().toISOString() },

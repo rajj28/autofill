@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { enqueueManySourceSyncs } from "@/lib/queue";
-import { env } from "@/lib/env";
+import { env, inlineSync } from "@/lib/env";
 import { safeEqual } from "@/lib/crypto";
 import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
+/** Leave headroom under maxDuration for the response and the last sync's tail. */
+const INLINE_BUDGET_MS = 45_000;
 
 export async function GET(request: NextRequest) {
   const header = request.headers.get("authorization") || "";
@@ -25,6 +28,26 @@ export async function GET(request: NextRequest) {
   });
 
   if (connections.length === 0) return NextResponse.json({ queued: 0, skipped: 0 });
+
+  // Serverless (SYNC_MODE=inline): no queue exists, so sync here, oldest
+  // first, and stop before the function's time limit. Whatever is left is
+  // still the stalest set on the next tick, so nothing is starved.
+  if (inlineSync) {
+    const { runConnectionSync } = await import("@/lib/sync/engine");
+    const deadline = Date.now() + INLINE_BUDGET_MS;
+    let synced = 0;
+    let failed = 0;
+    for (const { id } of connections) {
+      if (Date.now() > deadline) break;
+      try {
+        await runConnectionSync(id, "cron");
+        synced += 1;
+      } catch {
+        failed += 1; // recorded on the connection by runConnectionSync
+      }
+    }
+    return NextResponse.json({ synced, failed, remaining: connections.length - synced - failed });
+  }
 
   // Deliberately NOT enqueueSourceSync: that helper falls back to running the
   // sync inline when Redis is down, which is right for a single user action but
