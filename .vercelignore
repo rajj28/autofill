@@ -1,0 +1,7 @@
+# Never upload local secrets or build output; Vercel env vars are the source of truth.
+.env
+.env.*
+!.env.example
+.next
+node_modules
+tsconfig.tsbuildinfo

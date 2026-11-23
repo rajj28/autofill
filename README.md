@@ -1,6 +1,6 @@
 # Provenance
 
-[![CI](https://github.com/rajj28/provenance/actions/workflows/ci.yml/badge.svg)](https://github.com/rajj28/provenance/actions/workflows/ci.yml)
+[![CI](https://github.com/rajj28/autofill/actions/workflows/ci.yml/badge.svg)](https://github.com/rajj28/autofill/actions/workflows/ci.yml)
 [![Licence: AGPL v3](https://img.shields.io/badge/licence-AGPL--3.0-blue.svg)](./LICENSE)
 
 **Your portfolio, updated by the work you already did.**
@@ -30,7 +30,7 @@ Most tools in this space open with a feature list. Here's the anti-feature list 
 ## Quickstart
 
 ```bash
-git clone https://github.com/rajj28/provenance.git && cd provenance
+git clone https://github.com/rajj28/autofill.git && cd autofill
 docker compose up -d              # postgres + redis
 cp .env.example .env              # windows: copy .env.example .env
 npm install
