@@ -7,6 +7,12 @@ import { env } from "@/lib/env";
 export const revalidate = 3600;
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  // `next build` prerenders this route and the Docker build stage has no
+  // database. Emit only the root there; the first request after boot
+  // regenerates the full list.
+  if (process.env.NEXT_PHASE === "phase-production-build") {
+    return [{ url: env.APP_URL, lastModified: new Date(), changeFrequency: "weekly", priority: 1 }];
+  }
   // Only portfolios that are public AND have something published are listed —
   // an empty page is not worth a crawl budget.
   const users = await prisma.user.findMany({

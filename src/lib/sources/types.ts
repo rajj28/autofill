@@ -41,6 +41,11 @@ export type FetchContext = {
 export type SourceAdapter = {
   type: SourceType;
   fetch(ctx: FetchContext): Promise<DiscoveredItem[]>;
+  /**
+   * Optional: exchange expiring OAuth credentials for fresh ones. Returns the new
+   * credentials when a refresh happened (the caller persists them), else null.
+   */
+  refresh?(credentials: ConnectionCredentials): Promise<ConnectionCredentials | null>;
   identity?(ctx: FetchContext): Promise<{
     externalUserId: string;
     displayName: string;

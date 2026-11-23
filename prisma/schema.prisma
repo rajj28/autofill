@@ -38,6 +38,7 @@ model User {
   linkedinAccount LinkedinAccount?
   linkedinPosts   LinkedinPost[]
   siteTarget      SiteTarget?
+  githubInstall   GithubInstallation?
   sitePublishes   SitePublish[]
 }
 
@@ -62,7 +63,7 @@ model SiteTarget {
   /// "append" — add rows to the content file their site ALREADY renders,
   ///            in that file's own field names, append-only
   strategy        String    @default("file")
-  encryptedToken  String
+  encryptedToken  String?
   /// Hash of the last payload written, so an unchanged portfolio does not
   /// produce an empty commit on every sync.
   lastContentHash String?
@@ -238,4 +239,18 @@ model SyncLog {
   finishedAt   DateTime?
 
   @@index([userId, createdAt(sort: Desc)])
+}
+
+/// A member's installation of the platform's GitHub App. This is what lets a
+/// member grant write access to ONE repository with a click, instead of
+/// creating and pasting a personal access token. The ownership of the
+/// installation is verified against GitHub at link time (see the callback).
+model GithubInstallation {
+  id             String   @id @default(cuid())
+  userId         String   @unique
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  installationId Int
+  accountLogin   String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 }

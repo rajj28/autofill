@@ -35,6 +35,10 @@ const schema = z.object({
 
   DATABASE_URL: z.string().min(1, "DATABASE_URL is required."),
   REDIS_URL: z.string().default("redis://127.0.0.1:6379"),
+  // "queue" (default): BullMQ + a separate worker process. "inline": no Redis or
+  // worker, syncs and site publishes run inside the request. Use inline on
+  // serverless hosts such as Vercel, where a long-running worker cannot exist.
+  SYNC_MODE: z.enum(["queue", "inline"]).default("queue"),
 
   AUTH_SECRET: isProd ? strongSecret("AUTH_SECRET") : z.string().default("dev-secret-not-for-production-use-only"),
   APP_ENCRYPTION_KEY: isProd
@@ -48,14 +52,41 @@ const schema = z.object({
   GITHUB_CLIENT_SECRET: z.string().optional(),
   GITHUB_WEBHOOK_SECRET: z.string().optional(),
 
+  // GitHub App: lets members grant write access to one repo with a click
+  // instead of creating a personal access token. Register it once as the operator.
+  GITHUB_APP_ID: z.string().optional(),
+  GITHUB_APP_SLUG: z.string().optional(),
+  GITHUB_APP_CLIENT_ID: z.string().optional(),
+  GITHUB_APP_CLIENT_SECRET: z.string().optional(),
+  // PEM, either with literal newlines, "\n" escapes, or base64-encoded.
+  GITHUB_APP_PRIVATE_KEY: z.string().optional(),
+
+  GITLAB_CLIENT_ID: z.string().optional(),
+  GITLAB_CLIENT_SECRET: z.string().optional(),
+
   LINKEDIN_CLIENT_ID: z.string().optional(),
   LINKEDIN_CLIENT_SECRET: z.string().optional(),
   // LinkedIn versions its API by month. Pin it so a LinkedIn-side change never
   // silently alters request semantics; bump deliberately.
   LINKEDIN_API_VERSION: z.string().regex(/^\d{6}$/, "LINKEDIN_API_VERSION must be YYYYMM.").default("202608"),
 
+  // ---- LLM (all optional; without a key the heuristic curator runs) ----
+  LLM_PROVIDER: z.enum(["openai", "anthropic"]).optional(),
   OPENAI_API_KEY: z.string().optional(),
   OPENAI_MODEL: z.string().default("gpt-4o-mini"),
+  ANTHROPIC_API_KEY: z.string().optional(),
+  ANTHROPIC_MODEL: z.string().default("claude-sonnet-4-5"),
+  LLM_TIMEOUT_MS: z.coerce.number().int().positive().default(30000),
+  LLM_MAX_RETRIES: z.coerce.number().int().min(0).max(5).default(2),
+  // Second-pass LLM check that every claim is supported by the source facts.
+  CURATION_VERIFY: z.enum(["true", "false"]).default("true"),
+
+  // Public "ask my portfolio" agent.
+  AGENT_ENABLED: z.enum(["true", "false"]).default("true"),
+  AGENT_RATE_LIMIT: z.coerce.number().int().positive().default(12),
+  AGENT_RATE_WINDOW_S: z.coerce.number().int().positive().default(300),
+  // Comma-separated origins allowed to call the agent from a browser.
+  AGENT_ALLOWED_ORIGINS: z.string().default("https://ruturaj.is-a.dev,http://localhost:5173"),
 
   SYNC_CONCURRENCY: z.coerce.number().int().positive().max(64).default(4),
   QUEUE_ENQUEUE_TIMEOUT_MS: z.coerce.number().int().positive().default(3000),
@@ -85,4 +116,15 @@ if (!parsed.success) {
 export const env = parsed.data;
 
 export const githubOAuthConfigured = Boolean(env.GITHUB_CLIENT_ID && env.GITHUB_CLIENT_SECRET);
+/** True only when an operator set REDIS_URL, not when the localhost default applies. */
+export const redisConfigured = Boolean(process.env.REDIS_URL?.trim());
+export const inlineSync = env.SYNC_MODE === "inline";
+export const gitlabOAuthConfigured = Boolean(env.GITLAB_CLIENT_ID && env.GITLAB_CLIENT_SECRET);
+export const githubAppConfigured = Boolean(
+  env.GITHUB_APP_ID &&
+    env.GITHUB_APP_SLUG &&
+    env.GITHUB_APP_CLIENT_ID &&
+    env.GITHUB_APP_CLIENT_SECRET &&
+    env.GITHUB_APP_PRIVATE_KEY
+);
 export const linkedinOAuthConfigured = Boolean(env.LINKEDIN_CLIENT_ID && env.LINKEDIN_CLIENT_SECRET);

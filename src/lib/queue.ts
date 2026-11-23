@@ -1,7 +1,7 @@
 import { Queue, QueueEvents } from "bullmq";
 import IORedis from "ioredis";
 import { logger } from "./logger";
-import { env } from "./env";
+import { env, inlineSync } from "./env";
 
 export function createRedis() {
   return new IORedis(env.REDIS_URL, {
@@ -82,6 +82,11 @@ export function jobIdFor(connectionId: string, at = Date.now()) {
  * batch callers (see the cron route), which must not run syncs in-request.
  */
 export async function enqueueSourceSync(connectionId: string, reason: string) {
+  if (inlineSync) {
+    const { runConnectionSync } = await import("./sync/engine");
+    await runConnectionSync(connectionId, reason);
+    return;
+  }
   try {
     const syncQueue = getSyncQueue();
     await withTimeout(
@@ -129,6 +134,18 @@ export async function enqueueManySourceSyncs(connectionIds: string[], reason: st
  * approval or a manual "Publish now" picks it up.
  */
 export async function enqueueSitePublish(userId: string, reason: string) {
+  if (inlineSync) {
+    // No worker exists, so publish now. A failure is recorded on the
+    // SiteTarget by publishToSite and must not fail the approval that caused it.
+    try {
+      const { publishToSite } = await import("./site/publish");
+      await publishToSite(userId, reason);
+      return true;
+    } catch (error) {
+      logger.warn("site_publish_inline_failed", { userId, error: error instanceof Error ? error.message : "unknown" });
+      return false;
+    }
+  }
   try {
     const queue = getSiteQueue();
     await withTimeout(

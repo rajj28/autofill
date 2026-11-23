@@ -8,7 +8,7 @@ import { ManualImportForm } from "@/components/manual-import-form";
 import { LinkedInDisconnect } from "@/components/linkedin-connection";
 import { EmbedSnippet, SiteRepoForm } from "@/components/site-delivery";
 import { getLinkedInAccount } from "@/lib/linkedin/account";
-import { env, githubOAuthConfigured, linkedinOAuthConfigured } from "@/lib/env";
+import { env, githubAppConfigured, githubOAuthConfigured, gitlabOAuthConfigured, linkedinOAuthConfigured } from "@/lib/env";
 import Link from "next/link";
 
 export default async function SourcesPage({
@@ -18,10 +18,11 @@ export default async function SourcesPage({
 }) {
   const user = await requireUser();
   const params = await searchParams;
-  const [connections, linkedin, siteTarget] = await Promise.all([
+  const [connections, linkedin, siteTarget, githubInstall] = await Promise.all([
     prisma.sourceConnection.findMany({ where: { userId: user.id }, orderBy: { updatedAt: "desc" } }),
     getLinkedInAccount(user.id),
     prisma.siteTarget.findUnique({ where: { userId: user.id } }),
+    prisma.githubInstallation.findUnique({ where: { userId: user.id } }),
   ]);
   const appUrl = env.APP_URL;
   const live = SOURCE_CATALOG.filter((s) => s.live && s.type !== "manual");
@@ -37,7 +38,11 @@ export default async function SourcesPage({
           Live connectors use official APIs. Restricted platforms are not scraped; import the evidence you can prove.
         </p>
         {params.connected ? (
-          <p className="mt-3 text-sm text-pine">Connected {params.connected}. Discovery is running.</p>
+          <p className="mt-3 text-sm text-pine">
+            {params.connected === "github-app"
+              ? "GitHub App installed. Now pick the repository below."
+              : `Connected ${params.connected}. Discovery is running.`}
+          </p>
         ) : null}
         {params.warn === "no_share_scope" ? (
           <p className="mt-3 text-sm text-[#9b2c2c]">
@@ -50,7 +55,7 @@ export default async function SourcesPage({
             LinkedIn connection failed. {params.reason || "Check the client id, secret, and redirect URL."}
           </p>
         ) : params.error ? (
-          <p className="mt-3 text-sm text-[#9b2c2c]">GitHub OAuth failed. Check client id/secret, or use a token.</p>
+          <p className="mt-3 text-sm text-[#9b2c2c]">Could not connect {params.error.replaceAll("_", " ")}. Try again, or use a token.</p>
         ) : null}
       </div>
 
@@ -58,7 +63,7 @@ export default async function SourcesPage({
         <h2 className="serif text-2xl">Connected</h2>
         {connections.length === 0 ? (
           <div className="mt-3">
-            <Empty title="None yet" body="Start with GitHub. A fine-grained or classic token with public repo read access is enough." />
+            <Empty title="None yet" body="Start with GitHub: one click, no token needed." />
           </div>
         ) : (
           <div className="mt-3 grid gap-4 md:grid-cols-2">
@@ -100,15 +105,36 @@ export default async function SourcesPage({
               </div>
               <p className="mt-2 text-sm text-ink-soft">{source.blurb}</p>
               <p className="mt-2 text-xs text-ink-soft">{source.apiNotes}</p>
-              {source.type === "github" && githubOAuthConfigured ? (
-                <Link
-                  href="/api/integrations/github/start"
-                  className="mt-4 inline-flex rounded-full bg-ink px-4 py-2 text-sm text-paper"
-                >
-                  Connect with GitHub
-                </Link>
-              ) : null}
-              {source.fields.length > 0 ? <ConnectForm source={source} /> : null}
+              {(() => {
+                const oauthHref =
+                  source.type === "github" && githubOAuthConfigured
+                    ? "/api/integrations/github/start"
+                    : source.type === "gitlab" && gitlabOAuthConfigured
+                      ? "/api/integrations/gitlab/start"
+                      : null;
+                return (
+                  <>
+                    {oauthHref ? (
+                      <Link
+                        href={oauthHref}
+                        className="mt-4 inline-flex rounded-full bg-ink px-4 py-2 text-sm text-paper"
+                      >
+                        Connect with {source.name}
+                      </Link>
+                    ) : null}
+                    {source.fields.length > 0 ? (
+                      oauthHref ? (
+                        <details className="mt-3 text-xs text-ink-soft">
+                          <summary className="cursor-pointer">Use an access token instead</summary>
+                          <ConnectForm source={source} />
+                        </details>
+                      ) : (
+                        <ConnectForm source={source} />
+                      )
+                    ) : null}
+                  </>
+                );
+              })()}
             </Card>
           ))}
         </div>
@@ -143,6 +169,7 @@ export default async function SourcesPage({
               approval, and your existing build renders it. Only that file is ever touched.
             </p>
             <SiteRepoForm
+              githubApp={{ enabled: githubAppConfigured, installedAs: githubInstall?.accountLogin ?? null }}
               target={
                 siteTarget
                   ? {

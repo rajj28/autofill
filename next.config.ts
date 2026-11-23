@@ -46,8 +46,9 @@ const nextConfig: NextConfig = {
   // rather than be bundled into the server output.
   serverExternalPackages: ["@prisma/client", "prisma", "bullmq", "ioredis", "octokit", "typescript"],
 
-  // Self-contained server bundle for the container image.
-  output: "standalone",
+  // Self-contained server bundle for the container image. Vercel does its own
+  // packaging and fails if standalone output is forced on it.
+  ...(process.env.VERCEL ? {} : { output: "standalone" as const }),
 
   // Do not advertise the framework.
   poweredByHeader: false,
@@ -65,7 +66,7 @@ const nextConfig: NextConfig = {
       // which is a public feed embedded on other people's sites and is meant to
       // be cached — a blanket /api/:path* no-store would silently override the
       // cache headers that route sets.
-      ...["auth", "cron", "integrations", "webhooks", "health"].map((segment) => ({
+      ...["auth", "cron", "integrations", "webhooks", "health", "agent"].map((segment) => ({
         source: `/api/${segment}/:path*`,
         headers: [{ key: "Cache-Control", value: "no-store" }],
       })),

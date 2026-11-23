@@ -1,6 +1,6 @@
 # Provenance
 
-[![CI](https://github.com/rajj28/provenance/actions/workflows/ci.yml/badge.svg)](https://github.com/rajj28/provenance/actions/workflows/ci.yml)
+[![CI](https://github.com/rajj28/autofill/actions/workflows/ci.yml/badge.svg)](https://github.com/rajj28/autofill/actions/workflows/ci.yml)
 [![Licence: AGPL v3](https://img.shields.io/badge/licence-AGPL--3.0-blue.svg)](./LICENSE)
 
 **Your portfolio, updated by the work you already did.**
@@ -30,7 +30,7 @@ Most tools in this space open with a feature list. Here's the anti-feature list 
 ## Quickstart
 
 ```bash
-git clone https://github.com/rajj28/provenance.git && cd provenance
+git clone https://github.com/rajj28/autofill.git && cd autofill
 docker compose up -d              # postgres + redis
 cp .env.example .env              # windows: copy .env.example .env
 npm install
@@ -153,6 +153,52 @@ A title containing a double quote won't break out of the string literal and turn
 **What it can't check is your build** — types, lint, your own invariants. Which is why **pull requests are the default**. Your CI runs before anything reaches production. Direct-commit exists, it's just opt-in and you're choosing that.
 
 **The line it won't cross:** it reads a module-level array of object literals. It never reads or rewrites your application *logic*. Owning a content layer works across arbitrary frameworks. Rewriting components does not, and anyone promising otherwise hasn't thought about who gets paged.
+
+---
+
+## Operator setup: one-click connections for every member
+
+Members of your Provenance never create API keys. **You** register four small apps once; after that each member just clicks Connect.
+
+| Account | What you register (once) | Member experience |
+|---|---|---|
+| GitHub (read activity) | OAuth App: callback `$APP_URL/api/integrations/github/callback` | "Connect with GitHub" |
+| GitHub (write to their site repo) | GitHub App: setup URL `$APP_URL/api/integrations/github-app/callback`, tick *Request user authorization during installation*, permissions Contents + Pull requests = read/write | "Install the GitHub App", picks one repo |
+| GitLab | Application: redirect `$APP_URL/api/integrations/gitlab/callback`, scope `read_api` | "Connect with GitLab" |
+| LinkedIn | App with *Sign In with LinkedIn using OpenID Connect* and *Share on LinkedIn*, redirect `$APP_URL/api/integrations/linkedin/callback` | "Connect LinkedIn" (publish only) |
+| npm, PyPI, Dev.to, arXiv, ORCID | Nothing | They type a username or iD, because these read public data |
+
+Two honest limits:
+
+- **Kaggle** has no OAuth, so a member must paste their own Kaggle key. There is no way around that.
+- **LinkedIn** only lets apps post, never read, so it stays a publishing destination.
+
+The GitHub App path checks ownership with GitHub (using the member's own authorisation) before it stores an installation id, so one member cannot point their site delivery at another member's repositories.
+
+---
+## The AI layer (LangChain + LangGraph)
+
+Set `OPENAI_API_KEY` or `ANTHROPIC_API_KEY` (or pick with `LLM_PROVIDER`). No key means the offline heuristic curator, as before. Any provider failure also falls back to the heuristic, so a sync never stalls on a model outage.
+
+**Curation is a LangGraph state machine**, not one prompt:
+
+```
+write -> ground -> verify -> (unsupported claims? revise -> ground) -> finalize
+```
+
+- **ground** is deterministic code, no model: every number and URL in the generated prose must appear in the source facts, or it is flagged.
+- **verify** is a second LLM pass that lists claims the facts don't support (`CURATION_VERIFY=false` to skip it and halve the cost).
+- **revise** runs at most once. If a claim is still unsupported after that, it moves into `uncertainFields` and confidence is capped at 55, which keeps the item out of Autopilot.
+
+**"Ask my portfolio"** is a tool-calling agent at `POST /api/agent/<slug>`. It searches your published items through read-only tools and answers only from them. Citations are the items it actually retrieved *and* referenced, so an invented id is dropped. It has no write tools and no network tools, hard caps on model and tool calls, a per-IP rate limit, and CORS limited to `AGENT_ALLOWED_ORIGINS`.
+
+```bash
+curl -X POST https://your-app/api/agent/your-slug \
+  -H "content-type: application/json" -H "origin: https://ruturaj.is-a.dev" \
+  -d '{"messages":[{"role":"user","content":"What agent projects has he built?"}]}'
+```
+
+Tracing: set `LANGSMITH_TRACING=true` and `LANGSMITH_API_KEY` and every graph and agent run shows up in LangSmith with no code changes.
 
 ---
 

@@ -37,9 +37,19 @@ export async function runConnectionSync(connectionId: string, reason: string) {
 
   try {
     const adapter = getAdapter(connection.sourceType as SourceType);
-    const credentials = connection.encryptedCredentials
+    let credentials = connection.encryptedCredentials
       ? (JSON.parse(decryptSecret(connection.encryptedCredentials)) as ConnectionCredentials)
       : {};
+    // Expiring OAuth tokens (GitLab) are refreshed up front. Rotated refresh
+    // tokens are persisted immediately: losing one would strand the connection.
+    const refreshed = adapter.refresh ? await adapter.refresh(credentials) : null;
+    if (refreshed) {
+      credentials = refreshed;
+      await prisma.sourceConnection.update({
+        where: { id: connectionId },
+        data: { encryptedCredentials: encryptSecret(JSON.stringify(refreshed)) },
+      });
+    }
     const items = await adapter.fetch({ credentials, displayName: connection.displayName });
     let upserts = 0;
     let autoPublished = 0;

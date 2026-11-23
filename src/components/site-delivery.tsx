@@ -65,7 +65,14 @@ export function EmbedSnippet({ appUrl, slug }: { appUrl: string; slug: string })
   );
 }
 
-export function SiteRepoForm({ target }: { target: Target | null }) {
+export function SiteRepoForm({
+  target,
+  githubApp,
+}: {
+  target: Target | null;
+  /** Set when the operator registered a GitHub App. `installedAs` is the account the member installed it on. */
+  githubApp?: { enabled: boolean; installedAs: string | null };
+}) {
   const [state, action, pending] = useActionState(
     async (_prev: { error?: string; ok?: boolean } | null, formData: FormData) => connectSiteAction(formData),
     null
@@ -187,15 +194,45 @@ export function SiteRepoForm({ target }: { target: Target | null }) {
           <option value="commit">Commit straight to the branch</option>
         </select>
       </label>
-      <div className="sm:col-span-2">
-        <Field name="token" label="GitHub token with Contents: write" type="password" required placeholder="github_pat_…" />
-      </div>
-      <p className="text-xs text-ink-soft sm:col-span-2">
-        Use a <strong>fine-grained</strong> token scoped to this one repository, with{" "}
-        <strong>Contents: Read and write</strong> (and <strong>Pull requests: Read and write</strong> for PR mode).
-        Stored encrypted and never shown again. This is separate from your GitHub source connection on purpose —
-        reading your public activity and writing to a repo are different grants.
-      </p>
+      {githubApp?.enabled && githubApp.installedAs ? (
+        <p className="text-xs text-ink-soft sm:col-span-2">
+          Writing as the Provenance GitHub App installed on <strong>{githubApp.installedAs}</strong>. No token needed.
+          The app can only touch the repositories you selected when you installed it.{" "}
+          <a className="text-copper-deep hover:underline" href="/api/integrations/github-app/start">
+            Change repositories
+          </a>
+        </p>
+      ) : githubApp?.enabled ? (
+        <div className="space-y-2 sm:col-span-2">
+          <a
+            href="/api/integrations/github-app/start"
+            className="inline-flex rounded-full bg-ink px-4 py-2 text-sm text-paper"
+          >
+            Install the GitHub App on your site repo
+          </a>
+          <p className="text-xs text-ink-soft">
+            One click. You choose the repository on GitHub; no token to create or paste. Come back here afterwards to
+            finish.
+          </p>
+          <details className="text-xs text-ink-soft">
+            <summary className="cursor-pointer">Use a personal access token instead</summary>
+            <div className="mt-2">
+              <Field name="token" label="Fine-grained token (Contents: write)" type="password" placeholder="github_pat_..." />
+            </div>
+          </details>
+        </div>
+      ) : (
+        <>
+          <div className="sm:col-span-2">
+            <Field name="token" label="GitHub token with Contents: write" type="password" required placeholder="github_pat_..." />
+          </div>
+          <p className="text-xs text-ink-soft sm:col-span-2">
+            Use a <strong>fine-grained</strong> token scoped to this one repository, with{" "}
+            <strong>Contents: Read and write</strong> (and <strong>Pull requests: Read and write</strong> for PR mode).
+            Stored encrypted and never shown again.
+          </p>
+        </>
+      )}
       {state?.error ? <p className="text-sm text-[#9b2c2c] sm:col-span-2">{state.error}</p> : null}
       {state?.ok ? <p className="text-sm text-pine sm:col-span-2">Connected. Use Publish now to write the first file.</p> : null}
       <div className="flex gap-2 sm:col-span-2">
